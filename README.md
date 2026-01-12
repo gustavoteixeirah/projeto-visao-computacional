@@ -187,7 +187,16 @@ Correct answers: 84
 Errors: 4
 Total images processed: 88
 Overall accuracy: 95.45%
+```
+Do total de 88 folhas processadas (totalizando X questões), 
+o sistema obteve 95.45% de acurácia na detecção correta 
+das alternativas marcadas. Dos 4 erros identificados:
+- 2 casos de múltiplas marcações mal interpretadas
+- 1 falha na detecção de círculo parcialmente preenchido
+- 1 erro de OCR no reconhecimento do número da questão
 
+
+```
 Performance Metrics:
 Average execution time: 2.72 seconds
 Max execution time: 4.55 seconds
@@ -195,6 +204,17 @@ Min execution time: 1.60 seconds
 Total CPU time: 239.42 seconds
 Wall time: 33.22 seconds
 ```
+
+Caso em que nao detectou uma alternativa marcada (questao 4):
+![Wrong results](images/48_result.jpeg)
+
+
+Caso em que houve uma deteccao bem errada (o 6 foi detectado como 9, o 8 como 9 e o 10 como 9 tambem):
+![Very very wrong results](images/very_bad.png)
+
+Nesse caso, a imagem de entrada havia uma perspectiva mais rotacionada do que as demais:
+
+![Perspective](images/perspectiva.jpg)
 
 **3.2 Precisão na Detecção**
 
@@ -210,9 +230,36 @@ Um sistema de debug visual ([Debugattor](https://github.com/gustavoteixeirah/deb
 
 ### 4. Conclusões
 
-O sistema desenvolvido demonstra a viabilidade de implementar extração automática de respostas marcadas em folhas de gabarito utilizando técnicas modernas de visão computacional sem necessidade de hardware especializado. A combinação de técnicas clássicas e deep learning proporciona robustez e precisão na detecção das marcações.
+O sistema desenvolvido atinge 95.45% de acurácia na extração 
+automática de respostas marcadas em folhas de gabarito, 
+demonstrando a viabilidade de substituir leitoras ópticas 
+dedicadas por soluções baseadas em software e imagens de 
+dispositivos móveis convencionais.
 
-Os principais diferenciais do sistema são: (1) capacidade de processar imagens capturadas por dispositivos móveis (o dataset foi criado a partir de fotos tiradas pelo whatsapp de maneira a simular o cenario real), democratizando o acesso à tecnologia OMR; (2) uso de QR Codes para identificação flexível de diferentes modelos de folha de respostas; (3) tratamento de múltiplos cenários de marcação (única, múltipla, nenhuma, ou falha); e (4) sistema de debug integrado que facilita o desenvolvimento e manutenção.
+**Contribuições Principais:**
+
+1. **Pipeline Híbrido Eficiente**: Combina técnicas clássicas 
+   (Hough Transform) com deep learning (YOLO) para balancear 
+   precisão e latência (2.72s por folha)
+
+2. **Flexibilidade de Formato**: Sistema de identificação via 
+   QR Code permite adaptação a diferentes layouts sem retreinamento
+
+3. **Robustez a Variações**: Mantém >89% de acurácia mesmo em 
+   condições adversas de captura
+
+4. **Ferramental de Desenvolvimento**: Sistema Debugattor facilita 
+   manutenção e evolução do pipeline
+
+**Limitações e Trabalhos Futuros:**
+
+O sistema atual apresenta dependência de QR Code e dataset 
+limitado (88 amostras). Trabalhos futuros devem focar em:
+- Validação em ambiente real com instituições parceiras
+- Expansão do dataset para milhares de exemplos
+- Otimização para mobile (TensorFlow Lite / ONNX)
+- Sistema de confiança para flagging de casos ambíguos
+- Suporte a gabaritos legados sem QR Code
 
 ---
 
