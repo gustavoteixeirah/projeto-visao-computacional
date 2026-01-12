@@ -36,7 +36,11 @@ Os principais objetivos do sistema são: (1) robustez a variações de iluminaç
 
 ### 2. Modelagem
 
-O sistema foi arquitetado como um pipeline sequencial de processamento, onde cada etapa recebe a saída da anterior e adiciona informações extraídas da imagem. A modelagem segue o princípio de separação de responsabilidades, com módulos independentes para cada funcionalidade.
+O sistema foi arquitetado como um pipeline sequencial de processamento, onde cada etapa recebe a saída da anterior e adiciona informações extraídas da imagem. A modelagem segue o princípio de separação de responsabilidades, com módulos independentes para cada funcionalidade. 
+
+Exemplo de imagem de entrada:
+
+![Input image](images/input_image.jpg)
 
 **2.1 Pré-processamento e Alinhamento**
 
