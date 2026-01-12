@@ -39,40 +39,135 @@ Os principais objetivos do sistema são: (1) robustez a variações de iluminaç
 O sistema foi arquitetado como um pipeline sequencial de processamento, onde cada etapa recebe a saída da anterior e adiciona informações extraídas da imagem. A modelagem segue o princípio de separação de responsabilidades, com módulos independentes para cada funcionalidade. 
 
 Exemplo de imagem de entrada:
-
 ![Input image](images/input_image.jpg)
 
 **2.1 Pré-processamento e Alinhamento**
 
-A primeira etapa consiste no alinhamento da imagem de entrada para correção de distorções de perspectiva. O processo utiliza detecção de bordas com o algoritmo Canny, seguido de detecção de contornos para identificar o retângulo correspondente à folha de gabarito. Uma transformação de perspectiva é então aplicada para obter uma visão frontal da folha, facilitando as etapas subsequentes.
+A primeira etapa consiste no alinhamento da imagem para correção de distorções. O sistema utiliza o método findContours e a função contourArea para localizar o maior objeto na imagem, garantindo que o processamento foque exclusivamente na folha de gabarito. Através do approxPolyDP, a geometria dessa forma é simplificada para validar a presença de quatro vértices, confirmando que se trata de um quadrilátero. Uma vez identificado, o contorno é destacado com o drawContours, isolando a área de interesse.
+
+Em seguida, o algoritmo organiza os pontos detectados e calcula as dimensões ideais da folha para determinar sua largura e altura máximas. Com esses dados, o getPerspectiveTransform gera uma matriz de mapeamento que correlaciona os pontos distorcidos a um plano retangular perfeito. O processo é finalizado com o warpPerspective, que aplica essa matriz para retificar a imagem, eliminando inclinações e gerando uma visão frontal padronizada, essencial para a precisão da leitura.
+
+Resultado da imagem alinhada:
+![Aligned Image](images/alinhada.jpg)
 
 **2.2 Identificação do Modelo de Gabarito via QR Code**
 
-Cada modelo de folha de gabarito possui um QR Code único contendo um UUID (Universally Unique Identifier). O sistema utiliza o detector de QR Code nativo do OpenCV para localizar e decodificar este identificador. O UUID é então utilizado para consultar uma base de dados (local ou via API) que contém informações sobre a estrutura da folha: número de questões e quantidade de alternativas por questão. Estas informações auxiliam o pipeline a interpretar corretamente a disposição das alternativas.
+Cada modelo de folha de gabarito possui um QR Code único contendo um UUID (Universally Unique Identifier). O sistema utiliza o detector de QR Code nativo do OpenCV (`cv2.QRCodeDetector()`) para localizar e decodificar este identificador. 
+
+![QR Code](images/qr_code_extracted.jpg)
+
+O UUID é então utilizado para consultar uma base de dados (local para fins de teste) que contém informações sobre a estrutura da folha: número de questões e quantidade de alternativas por questão. Estas informações auxiliam o pipeline a interpretar corretamente a disposição das alternativas.
+
+```json
+{
+  "id" : "0a0f626a-56c5-4c8b-a62a-039dcf84d213",
+  "studentId" : "e3a7c30d-cbd7-4512-aec1-da9841cdf0f1",
+  "assessmentId" : "2b876ff0-d627-4b8d-80e5-48d05d8c251e",
+  "batchId" : "cca55953-f8aa-4e6c-8ec5-b2b979a57d73",
+  "generatedAt" : "06/10/2025 12:58",
+  "generatedBy" : "Joh Doe",
+  "questions" : [ {
+    "number" : 1,
+    "optionsCount" : 5
+  }, {
+    "number" : 2,
+    "optionsCount" : 5
+  },
+  ...
+}
+```
 
 **2.3 Detecção de Grupos de Questões**
 
 Um modelo YOLO treinado especificamente para esta tarefa identifica as regiões da imagem que contêm grupos de alternativas. O modelo retorna bounding boxes (caixas delimitadoras) para cada grupo detectado. O treinamento foi realizado com um dataset customizado de imagens de gabaritos anotadas.
 
+![Question groups](images/grupo_questoes.jpg)
+
 **2.4 Detecção de Círculos**
 
 A detecção de círculos emprega uma abordagem híbrida. Primeiro, um modelo YOLO identifica círculos que apresentam alta probabilidade de estarem preenchidos. Em seguida, a Transformada Circular de Hough é aplicada para detectar todos os círculos na região de interesse, incluindo os não marcados. Os parâmetros da Transformada de Hough são calibrados com base nos círculos já detectados pelo modelo YOLO.
+
+![Circle detection](images/deteccao_circulos.jpg)
 
 **2.5 Análise de Preenchimento**
 
 Para cada círculo detectado, calcula-se a razão de preenchimento (fill ratio), que corresponde à proporção de pixels escuros dentro da área do círculo. Círculos com razão de preenchimento acima de um limiar (tipicamente 80%) são classificados como marcados. Esta etapa complementa a detecção do modelo YOLO, reduzindo falsos negativos.
 
+![Fill ratio](images/fill_ratio.jpg)
+
 **2.6 Reconhecimento de Números**
 
-O número de cada questão é reconhecido utilizando um modelo ensemble de machine learning treinado com scikit-learn. A região contendo o número é recortada, redimensionada para 28x28 pixels, e submetida ao classificador que retorna o dígito correspondente.
+O número de cada questão é reconhecido utilizando um modelo ensemble de machine learning treinado especificamente para esta tarefa. O processo de desenvolvimento deste componente envolveu três etapas principais: criação do dataset, anotação manual e treinamento do modelo.
+
+**Criação do Dataset**: Um script automatizado processa imagens de folhas de gabarito utilizando o próprio pipeline de detecção de grupos de questões. Para cada grupo detectado, a região contendo o número da questão é identificada através da extensão das bounding boxes dos grupos de alternativas. Essas regiões são recortadas automaticamente e salvas como imagens individuais, cada uma associada a um identificador UUID único.
+
+![Number 7](images/number_7.jpg)
+![Number 8](images/number_8.jpg)
+
+**Anotação Manual (Labelling)**: Os recortes extraídos foram anotados manualmente através de uma interface desenvolvida em Streamlit. Esta ferramenta de verificação permite visualizar cada imagem de número e atribuir o label correto (dígitos de 1 a 10), com navegação rápida por botões numéricos e atalhos de teclado para acelerar o processo de anotação. Os labels são salvos em arquivos JSON associados a cada imagem pelo UUID correspondente.
+
+**Treinamento do Modelo**: O modelo final é um ensemble que combina três classificadores clássicos de machine learning: Random Forest, Gradient Boosting e Support Vector Machine (SVM), utilizando votação majoritária (hard voting) para a predição final. Durante o treinamento, técnicas de data augmentation são aplicadas para aumentar a robustez do modelo, incluindo rotações leves, deslocamentos, variações de brilho e contraste, e blur gaussiano. Cada imagem é redimensionada para 28x28 pixels e convertida em um vetor de features (flatten) antes de ser submetida ao classificador. O modelo treinado é serializado e salvo para uso em inferência.
 
 **2.7 Inferência das Respostas**
 
 Os círculos de cada grupo são ordenados por posição horizontal (coordenada X) e mapeados para as alternativas (A, B, C, D, E). Os círculos classificados como marcados determinam quais letras o aluno assinalou para aquela questão. O sistema contempla todos os cenários possíveis: uma única letra marcada, múltiplas letras marcadas (quando o aluno marca mais de uma alternativa), nenhuma letra marcada (questão em branco), ou falha na detecção (quando não é possível determinar com confiança o estado das marcações).
 
+Nesse caso, 5 circulos detectados do grupo 1, sendo o ultimo (ordenado horizontalmente) marcado, resulta em E.
+
+![Number 8](images/group_inference.jpg)
+
+Nesse caso, 5 circulos detectados do grupo 8, sendo o primeiro e o ultimo (ordenado horizontalmente) marcados, resulta em A e E.
+
+![Number 8](images/group_inference2.jpg)
+
+Sem alternativas marcadas:
+
+![Number 8](images/group_inference_none.jpg)
+
 ### 3. Resultados
 
-O sistema foi desenvolvido e testado com datasets contendo imagens reais de gabaritos preenchidos em diferentes condições de iluminação e ângulos de captura. O dataset principal (datasetv2) contém 88 amostras com anotações ground truth em formato JSON.
+O sistema foi desenvolvido e testado com datasets contendo imagens reais de gabaritos preenchidos em diferentes condições de iluminação e ângulos de captura. 
+
+Resultado do processamento da imagem exemplo apresentado nesse relatorio:
+
+![Number 8](images/result.jpg)
+
+E a saida json ficou a seguinte:
+
+```json
+[
+  {
+    "question_number": 1,
+    "marked_answers": [
+      "E"
+    ]
+  },
+  {
+    "question_number": 2,
+    "marked_answers": [
+      "B"
+    ]
+  },
+  {
+    "question_number": 3,
+    "marked_answers": []
+  },
+  {
+    "question_number": 4,
+    "marked_answers": []
+  },
+  {
+    "question_number": 5,
+    "marked_answers": [
+      "D"
+    ]
+  },
+  ...
+]
+```
+
+
+O dataset principal (datasetv2) contém 88 amostras com anotações ground truth em formato JSON.
 
 **3.1 Desempenho do Pipeline**
 
