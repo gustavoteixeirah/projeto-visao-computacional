@@ -1,7 +1,7 @@
 # Pipeline de Extração de Respostas em Folhas de Gabarito
 
 #### Aluno: [Gustavo Teixeira](https://github.com/gustavoteixeirah)
-#### Orientador: [Vitor](prof.vitor@ica.ele.puc-rio.br).
+#### Orientador: Vitor Bento 
 
 ---
 
